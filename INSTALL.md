@@ -28,6 +28,9 @@ brew install tesseract tesseract-lang
 
 ## インストール方法
 
+* Current Version: v1.0.0-beta
+
+
 ### 方法1: 開発モードでインストール（推奨）
 
 開発モードでインストールすると、ソースコードの変更が即座に反映されます。
