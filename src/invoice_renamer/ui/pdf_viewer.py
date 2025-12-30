@@ -27,6 +27,8 @@ the LICENSE file in the distribution root.
 import os
 import re
 import csv
+import sys
+import shutil
 from typing import Optional, List
 from PySide6.QtWidgets import (QMainWindow, QVBoxLayout, QHBoxLayout,
                             QPushButton, QListWidget, QWidget, QFileDialog,
@@ -762,20 +764,54 @@ class PDFViewerApp(QMainWindow):
             else:
                 self.logger.info(f"テキスト「{text}」をファイル名に追加しました")
 
+    def _get_default_accounts_csv_path(self) -> str:
+        """デフォルトのaccounts.csvパスを取得(パッケージ内)
+
+        Returns:
+            str: デフォルトCSVファイルのパス
+        """
+        if getattr(sys, 'frozen', False):
+            # EXE化されている場合: EXE同階層のaccounts_default.csv
+            base_path = os.path.dirname(sys.executable)
+            return os.path.join(base_path, 'accounts_default.csv')
+        else:
+            # 開発環境の場合: src/invoice_renamer/data/accounts_default.csv
+            return os.path.join(
+                os.path.dirname(__file__), '..', 'data', 'accounts_default.csv'
+            )
+
+    def _get_user_accounts_csv_path(self) -> str:
+        """ユーザー編集可能なaccounts.csvパスを取得
+
+        Returns:
+            str: ユーザー編集用CSVファイルのパス
+        """
+        if getattr(sys, 'frozen', False):
+            # EXE化されている場合: EXE同階層のaccounts.csv
+            base_path = os.path.dirname(sys.executable)
+        else:
+            # 開発環境の場合: プロジェクトルートのaccounts.csv
+            base_path = os.getcwd()
+        return os.path.join(base_path, 'accounts.csv')
+
     def _load_accounts_from_file(self) -> List[str]:
         """設定ファイルから勘定科目のリストを読み込む
 
-        accounts.csv ファイルから勘定科目を読み込む。
-        ファイルが存在しない場合は、デフォルトの勘定科目でファイルを作成する。
+        EXE同階層のaccounts.csvから勘定科目を読み込む。
+        ファイルが存在しない場合は、デフォルトのaccounts_default.csvからコピーして作成する。
         CSVの2列目（よみがな）でソートし、1列目（勘定科目）を返す。
 
         Returns:
             List[str]: よみがなでソートされた勘定科目のリスト
         """
-        # 設定ファイルのパス（プロジェクトルートに配置）
-        accounts_file = os.path.join(os.getcwd(), "accounts.csv")
+        # ユーザー編集可能な設定ファイルのパス
+        accounts_file = self._get_user_accounts_csv_path()
+
+        # デフォルト設定ファイルのパス
+        default_accounts_file = self._get_default_accounts_csv_path()
 
         # デフォルトの勘定科目リスト（勘定科目, よみがな）
+        # ※ファイルからの読み込みに失敗した場合のフォールバック用
         default_accounts = [
             ("会議費", "かいぎひ"),
             ("外注費", "がいちゅうひ"),
@@ -789,23 +825,41 @@ class PDFViewerApp(QMainWindow):
             ("旅費交通費", "りょひこうつうひ")
         ]
 
-        # ファイルが存在しない場合は作成
+        # ユーザー設定ファイルが存在しない場合は、デフォルトファイルからコピー
         if not os.path.exists(accounts_file):
-            try:
-                with open(accounts_file, 'w', encoding='utf-8', newline='') as f:
-                    writer = csv.writer(f)
-                    writer.writerow(["勘定科目", "よみがな"])
-                    # よみがなでソート済み
+            if os.path.exists(default_accounts_file):
+                try:
+                    shutil.copy2(default_accounts_file, accounts_file)
+                    self.logger.info(f"デフォルト設定ファイルからコピーしました: {accounts_file}")
+                except Exception as e:
+                    self.logger.error(f"デフォルト設定ファイルのコピーに失敗: {e}")
+                    # フォールバック: ハードコードされたデフォルト値でファイルを作成
+                    try:
+                        with open(accounts_file, 'w', encoding='utf-8', newline='') as f:
+                            writer = csv.writer(f)
+                            writer.writerow(["勘定科目", "よみがな"])
+                            sorted_accounts = sorted(default_accounts, key=lambda x: x[1])
+                            for account, yomigana in sorted_accounts:
+                                writer.writerow([account, yomigana])
+                        self.logger.info(f"デフォルト値で勘定科目設定ファイルを作成しました: {accounts_file}")
+                    except Exception as e2:
+                        self.logger.error(f"勘定科目設定ファイルの作成に失敗: {e2}")
+                        sorted_accounts = sorted(default_accounts, key=lambda x: x[1])
+                        return [account for account, _ in sorted_accounts]
+            else:
+                # デフォルトファイルも存在しない場合: ハードコードされた値でファイル作成
+                try:
+                    with open(accounts_file, 'w', encoding='utf-8', newline='') as f:
+                        writer = csv.writer(f)
+                        writer.writerow(["勘定科目", "よみがな"])
+                        sorted_accounts = sorted(default_accounts, key=lambda x: x[1])
+                        for account, yomigana in sorted_accounts:
+                            writer.writerow([account, yomigana])
+                    self.logger.info(f"勘定科目設定ファイルを作成しました: {accounts_file}")
+                except Exception as e:
+                    self.logger.error(f"勘定科目設定ファイルの作成に失敗: {e}")
                     sorted_accounts = sorted(default_accounts, key=lambda x: x[1])
-                    for account, yomigana in sorted_accounts:
-                        writer.writerow([account, yomigana])
-                self.logger.info(f"勘定科目設定ファイルを作成しました: {accounts_file}")
-                return [account for account, _ in sorted_accounts]
-            except Exception as e:
-                self.logger.error(f"勘定科目設定ファイルの作成に失敗: {e}")
-                # デフォルトをよみがなでソートして返す
-                sorted_accounts = sorted(default_accounts, key=lambda x: x[1])
-                return [account for account, _ in sorted_accounts]
+                    return [account for account, _ in sorted_accounts]
 
         # ファイルから勘定科目を読み込む
         try:
