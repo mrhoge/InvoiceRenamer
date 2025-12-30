@@ -1,0 +1,20 @@
+root = true
+
+# 全体のデフォルト設定
+[*]
+charset = utf-8            # 文字コードをUTF-8に固定
+end_of_line = lf           # 改行コードをLFに固定
+insert_final_newline = true # ファイル末尾に改行を追加
+trim_trailing_whitespace = true # 行末の不要な空白を削除
+
+# 特定のファイルタイプ
+[*.{py,rst,ini}]
+indent_style = space       # インデントをスペースに統一
+indent_size = 4            # インデント幅を4に設定
+
+[*.md]
+trim_trailing_whitespace = false # Markdownでは行末の空白を削除しない
+
+[*.{json,yml,yaml,xml}]
+indent_style = space
+indent_size = 2

@@ -1,0 +1,71 @@
+# Python
+__pycache__/
+*.py[cod]
+*.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+.venv/
+env/
+ENV/
+
+# Environment Variables
+.env
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.pytest_cache/
+.mypy_cache/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Test Data
+*.pdf
+*.log
+*.tmp
+*.png
+*.jpg
+*.jpeg
+*.bak
+*.bk
+
+# Logs
+logs/
+
+# Coverage and Debug
+.coverage
+coverage.xml
+htmlcov/
+.tox/
+
+# Application Settings
+settings.ini
+
+# PyInstaller
+*.spec
+
+# Renamed PDFs (user data)
+renamed/

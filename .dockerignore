@@ -1,0 +1,84 @@
+# Git
+.git
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyc
+*.pyo
+*.pyd
+*.class
+*.so
+.Python
+
+# Virtual Environment
+venv/
+.venv/
+env/
+ENV/
+
+# Environment Variables
+.env
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Test Data
+*.pdf
+*.tmp
+*.png
+*.jpg
+*.jpeg
+*.bak
+*.bk
+
+# Logs
+*.log
+logs/
+
+# Coverage and Debug
+.pytest_cache/
+.mypy_cache/
+.coverage
+coverage.xml
+htmlcov/
+.tox/
+
+# Build
+*.egg-info/
+dist/
+build/
+develop-eggs/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+.installed.cfg
+*.egg
+
+# Application Settings
+settings.ini
+
+# PyInstaller
+*.spec
+
+# Renamed PDFs (user data)
+renamed/
+
+# Docker関連（ビルド時のみ除外）
+.dockerignore
+Dockerfile
+README.md
