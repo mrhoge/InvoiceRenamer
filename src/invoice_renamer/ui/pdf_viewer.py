@@ -465,6 +465,31 @@ class AnalysisResultBubble(QFrame):
         super().hideEvent(event)
 
 
+class ReloadableAccountComboBox(QComboBox):
+    """勘定科目コンボボックス（プルダウン時に自動再ロード）
+
+    プルダウンを開く際に、自動的に accounts.csv を再ロードする。
+    親のPDFViewerAppインスタンスの _reload_accounts() メソッドを呼び出す。
+    """
+
+    def __init__(self, parent_app, parent=None):
+        """コンボボックスを初期化
+
+        Args:
+            parent_app: PDFViewerAppインスタンス（再ロードメソッドを持つ）
+            parent: 親ウィジェット
+        """
+        super().__init__(parent)
+        self.parent_app = parent_app
+
+    def showPopup(self):
+        """プルダウンを表示する前に勘定科目を再ロード"""
+        # 親アプリの再ロードメソッドを呼び出す
+        if hasattr(self.parent_app, '_reload_accounts'):
+            self.parent_app._reload_accounts(self)
+        super().showPopup()
+
+
 class PDFViewerApp(QMainWindow):
     def __init__(self, pdf_handler: PDFHandler):
         super().__init__()
@@ -863,16 +888,38 @@ class PDFViewerApp(QMainWindow):
 
         # ファイルから勘定科目を読み込む
         try:
+            # セキュリティチェック: ファイルサイズの制限（1MBまで）
+            file_size = os.path.getsize(accounts_file)
+            max_file_size = 1024 * 1024  # 1MB
+            if file_size > max_file_size:
+                self.logger.error(f"勘定科目設定ファイルのサイズが大きすぎます: {file_size} bytes (制限: {max_file_size} bytes)")
+                sorted_accounts = sorted(default_accounts, key=lambda x: x[1])
+                return [account for account, _ in sorted_accounts]
+
             with open(accounts_file, 'r', encoding='utf-8') as f:
                 reader = csv.reader(f)
                 # ヘッダー行をスキップ
                 next(reader, None)
 
                 accounts_data = []
-                for row in reader:
+                max_rows = 10000  # 最大行数の制限
+                max_field_length = 1000  # 各フィールドの最大文字数
+
+                for row_num, row in enumerate(reader, start=2):  # ヘッダーが1行目なので2から開始
+                    # セキュリティチェック: 行数の制限
+                    if row_num > max_rows:
+                        self.logger.warning(f"勘定科目設定ファイルの行数が制限を超えました: {max_rows}行まで読み込みます")
+                        break
+
                     if len(row) >= 2 and row[0].strip():  # 勘定科目が空でない行のみ
                         account = row[0].strip()
                         yomigana = row[1].strip()
+
+                        # セキュリティチェック: フィールド長の制限
+                        if len(account) > max_field_length or len(yomigana) > max_field_length:
+                            self.logger.warning(f"行{row_num}: フィールドが長すぎるためスキップします（制限: {max_field_length}文字）")
+                            continue
+
                         accounts_data.append((account, yomigana))
 
                 if accounts_data:
@@ -889,6 +936,33 @@ class PDFViewerApp(QMainWindow):
             self.logger.error(f"勘定科目設定ファイルの読み込みに失敗: {e}")
             sorted_accounts = sorted(default_accounts, key=lambda x: x[1])
             return [account for account, _ in sorted_accounts]
+
+    def _reload_accounts(self, combo_box: QComboBox):
+        """勘定科目コンボボックスの内容を再ロード
+
+        accounts.csv から勘定科目を再読み込みし、コンボボックスの内容を更新する。
+        現在選択されている項目は、可能な限り維持する。
+
+        Args:
+            combo_box (QComboBox): 更新対象のコンボボックス
+        """
+        # 現在選択されている項目を保存
+        current_selection = combo_box.currentText()
+
+        # 勘定科目を再読み込み
+        accounts = self._load_accounts_from_file()
+
+        # コンボボックスの内容をクリアして再設定
+        combo_box.clear()
+        combo_box.addItems(accounts)
+
+        # 以前の選択が新しいリストにあれば、それを選択状態に戻す
+        if current_selection and current_selection in accounts:
+            index = combo_box.findText(current_selection)
+            if index >= 0:
+                combo_box.setCurrentIndex(index)
+
+        self.logger.info(f"勘定科目リストを再ロードしました: {len(accounts)}項目")
 
     def add_account_to_filename(self):
         """選択された勘定科目をファイル名フィールドに追加
@@ -1382,8 +1456,8 @@ class PDFViewerApp(QMainWindow):
         account_label = QLabel("勘定科目：")
         account_layout.addWidget(account_label)
 
-        # 勘定科目ドロップダウンメニュー
-        self.account_combo = QComboBox()
+        # 勘定科目ドロップダウンメニュー（プルダウン時に自動再ロード）
+        self.account_combo = ReloadableAccountComboBox(self)
         # 設定ファイルから勘定科目を読み込んで追加
         accounts = self._load_accounts_from_file()
         self.account_combo.addItems(accounts)
