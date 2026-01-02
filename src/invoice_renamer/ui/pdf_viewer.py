@@ -826,6 +826,33 @@ class PDFViewerApp(QMainWindow):
             self.text_items_list.takeItem(row)
             self.logger.info(f"テキストアイテム「{text}」を削除しました")
 
+    def _set_window_icon(self):
+        """ウィンドウアイコンを設定
+
+        icon.pngを読み込んで設定します。
+
+        Note:
+            Windowsタスクバーアイコンの設定はmain.pyで実行されます。
+        """
+        from PySide6.QtGui import QIcon
+
+        # アイコンファイルのパスを取得
+        if getattr(sys, 'frozen', False):
+            # EXE化されている場合: EXE同階層のicon.png
+            icon_path = os.path.join(os.path.dirname(sys.executable), 'icon.png')
+        else:
+            # 開発環境の場合: src/invoice_renamer/data/icon.png
+            icon_path = os.path.join(
+                os.path.dirname(__file__), '..', 'data', 'icon.png'
+            )
+
+        # アイコンファイルが存在する場合のみ設定
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
+            self.logger.info(f"ウィンドウアイコンを設定しました: {icon_path}")
+        else:
+            self.logger.debug(f"アイコンファイルが見つかりません: {icon_path}")
+
     def _get_default_accounts_csv_path(self) -> str:
         """デフォルトのaccounts.csvパスを取得(パッケージ内)
 
@@ -1402,25 +1429,28 @@ class PDFViewerApp(QMainWindow):
             shutil.move(self.current_pdf_path, original_file_new_path)
             self.logger.info(f"元のファイルを移動: {original_filename} -> original/{os.path.basename(original_file_new_path)}")
 
-            # 9. PDF一覧を再取得
-            self.load_pdf_files(self.current_folder)
-
-            # 成功メッセージを表示
-            QMessageBox.information(
-                self,
-                "完了",
-                f"ファイルをリネームしました:\n\n"
+            # 成功メッセージを表示（音なし）
+            msg_box = QMessageBox(self)
+            msg_box.setIcon(QMessageBox.NoIcon)  # アイコンなしで音も鳴らない
+            msg_box.setWindowTitle("完了")
+            msg_box.setText(
+                f"✓ ファイルをリネームしました:\n\n"
                 f"元のファイル: {original_filename}\n"
                 f"→ original/{os.path.basename(original_file_new_path)}\n\n"
                 f"リネーム後: {new_name}\n"
                 f"→ renamed/{new_name}"
             )
+            msg_box.setStandardButtons(QMessageBox.Ok)
+            msg_box.exec_()
 
-            # UIの状態を更新
+            # UIの状態をクリア（PDF一覧再取得の前に実行）
             self.rename_input.clear()
             self.current_pdf_path = None
             self.preview_label.clear()
             self.preview_label.setText("PDFファイルを選択してください")
+
+            # 9. PDF一覧を再取得（最初のPDFが自動的に開かれる）
+            self.load_pdf_files(self.current_folder)
 
         except PermissionError as e:
             error_message = f"ファイルへのアクセス権限がありません:\n{str(e)}"
@@ -1456,9 +1486,12 @@ class PDFViewerApp(QMainWindow):
     #         return None
 
     def setup_ui(self):
-        self.setWindowTitle("PDF Viewer")
+        self.setWindowTitle("Invoice Renamer")
         self.resize(1200, 800)
         self.current_folder = None
+
+        # アイコンを設定
+        self._set_window_icon()
 
         # 中央ウィジェットと全体レイアウト
         central_widget = QWidget()

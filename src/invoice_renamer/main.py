@@ -17,7 +17,10 @@ This program is distributed WITHOUT ANY WARRANTY; for more details see
 the LICENSE file in the distribution root.
 """
 import sys
+import os
+import platform
 from PySide6.QtWidgets import QApplication, QMessageBox
+from PySide6.QtGui import QIcon
 from invoice_renamer.ui.pdf_viewer import PDFViewerApp
 from invoice_renamer.logic.config_manager import ConfigManager
 from invoice_renamer.logic.pdf_handlers import PyMuPDFHandler, PDF2ImageHandler
@@ -74,17 +77,28 @@ def main():
     # ロガーとエラーハンドラーの初期化
     logger = setup_logger('invoice_renamer.main')
     error_handler = ErrorHandler(logger)
-    
+
     try:
+        # Windows環境の場合、アプリケーションID設定（タスクバーアイコン用）
+        # この設定はQApplication作成前に行う必要がある
+        if platform.system() == 'Windows':
+            try:
+                import ctypes
+                myappid = 'mrhoge.invoicerenamer.pdfviewer.1.0'
+                ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+                logger.info("Windows AppUserModelIDを設定しました（タスクバーアイコン用）")
+            except Exception as e:
+                logger.warning(f"Windows AppUserModelIDの設定に失敗しました: {e}")
+
         app = QApplication(sys.argv)
-        
+
         # PDFハンドラーの作成
         pdf_handler = create_pdf_handler(error_handler)
-        
-        # メインアプリケーションの起動
+
+        # メインアプリケーションの起動（アイコン設定はPDFViewerApp内で実行）
         viewer = PDFViewerApp(pdf_handler)
         viewer.show()
-        
+
         logger.info("アプリケーションを開始しました")
         sys.exit(app.exec())
 
