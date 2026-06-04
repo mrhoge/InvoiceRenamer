@@ -36,7 +36,7 @@ from PySide6.QtWidgets import (QMainWindow, QVBoxLayout, QHBoxLayout,
                             QListWidgetItem, QScrollArea, QFrame, QCheckBox,
                             QTextBrowser, QApplication, QComboBox)
 from PySide6.QtCore import Qt, Signal, QRect, QPoint, QTimer, QThread, QStandardPaths, QUrl, QSettings
-from PySide6.QtGui import QPixmap, QImage, QPainter, QPen, QColor, QMouseEvent
+from PySide6.QtGui import QPixmap, QImage, QPainter, QPen, QColor, QMouseEvent, QFont
 from pdf2image import convert_from_path
 from invoice_renamer.logic.pdf_handlers import PDFHandler, PyMuPDFHandler, PDF2ImageHandler
 from invoice_renamer.logic.selection_analyzer_v6 import SelectionAnalyzer, SelectionData
@@ -909,10 +909,12 @@ class PDFViewerApp(QMainWindow):
 
         EXE同階層のaccounts.csvから勘定科目を読み込む。
         ファイルが存在しない場合は、デフォルトのaccounts_default.csvからコピーして作成する。
-        CSVの2列目（よみがな）でソートし、1列目（勘定科目）を返す。
+        CSVは「アイコン,勘定科目,よみがな」の3列形式。
+        よみがなでソートし、コンボボックス表示用の「アイコン 勘定科目」文字列リストを返す。
+        アイコンが空の場合は勘定科目名のみを返す。
 
         Returns:
-            List[str]: よみがなでソートされた勘定科目のリスト
+            List[str]: よみがなでソートされた表示用文字列のリスト
         """
         # ユーザー編集可能な設定ファイルのパス
         accounts_file = self._get_user_accounts_csv_path()
@@ -920,20 +922,29 @@ class PDFViewerApp(QMainWindow):
         # デフォルト設定ファイルのパス
         default_accounts_file = self._get_default_accounts_csv_path()
 
-        # デフォルトの勘定科目リスト（勘定科目, よみがな）
+        # デフォルトの勘定科目リスト（アイコン, 勘定科目, よみがな）
         # ※ファイルからの読み込みに失敗した場合のフォールバック用
         default_accounts = [
-            ("会議費", "かいぎひ"),
-            ("外注費", "がいちゅうひ"),
-            ("広告宣伝費", "こうこくせんでんひ"),
-            ("交際費", "こうさいひ"),
-            ("交通費", "こうつうひ"),
-            ("消耗品費", "しょうもうひんひ"),
-            ("水道光熱費", "すいどうこうねつひ"),
-            ("地代家賃", "ちだいやちん"),
-            ("通信費", "つうしんひ"),
-            ("旅費交通費", "りょひこうつうひ")
+            ("☕", "会議費", "かいぎひ"),
+            ("🤝", "外注費", "がいちゅうひ"),
+            ("📺", "広告宣伝費", "こうこくせんでんひ"),
+            ("🥂", "交際費", "こうさいひ"),
+            ("✏️", "消耗品費", "しょうもうひんひ"),
+            ("🚰", "水道光熱費", "すいどうこうねつひ"),
+            ("🏘", "地代家賃", "ちだいやちん"),
+            ("📲", "通信費", "つうしんひ"),
+            ("🚌", "旅費交通費", "りょひこうつうひ")
         ]
+
+        def _format_display(icon: str, account: str) -> str:
+            """アイコンと勘定科目名から表示用文字列を生成"""
+            if icon:
+                return f"{icon} {account}"
+            return f"　 {account}"
+
+        def _default_display_list() -> List[str]:
+            sorted_accounts = sorted(default_accounts, key=lambda x: x[2])
+            return [_format_display(icon, account) for icon, account, _ in sorted_accounts]
 
         # ユーザー設定ファイルが存在しない場合は、デフォルトファイルからコピー
         if not os.path.exists(accounts_file):
@@ -943,84 +954,80 @@ class PDFViewerApp(QMainWindow):
                     self.logger.info(f"デフォルト設定ファイルからコピーしました: {accounts_file}")
                 except Exception as e:
                     self.logger.error(f"デフォルト設定ファイルのコピーに失敗: {e}")
-                    # フォールバック: ハードコードされたデフォルト値でファイルを作成
                     try:
                         with open(accounts_file, 'w', encoding='utf-8', newline='') as f:
                             writer = csv.writer(f)
-                            writer.writerow(["勘定科目", "よみがな"])
-                            sorted_accounts = sorted(default_accounts, key=lambda x: x[1])
-                            for account, yomigana in sorted_accounts:
-                                writer.writerow([account, yomigana])
+                            writer.writerow(["アイコン", "勘定科目", "よみがな"])
+                            sorted_accounts = sorted(default_accounts, key=lambda x: x[2])
+                            for icon, account, yomigana in sorted_accounts:
+                                writer.writerow([icon, account, yomigana])
                         self.logger.info(f"デフォルト値で勘定科目設定ファイルを作成しました: {accounts_file}")
                     except Exception as e2:
                         self.logger.error(f"勘定科目設定ファイルの作成に失敗: {e2}")
-                        sorted_accounts = sorted(default_accounts, key=lambda x: x[1])
-                        return [account for account, _ in sorted_accounts]
+                        return _default_display_list()
             else:
-                # デフォルトファイルも存在しない場合: ハードコードされた値でファイル作成
                 try:
                     with open(accounts_file, 'w', encoding='utf-8', newline='') as f:
                         writer = csv.writer(f)
-                        writer.writerow(["勘定科目", "よみがな"])
-                        sorted_accounts = sorted(default_accounts, key=lambda x: x[1])
-                        for account, yomigana in sorted_accounts:
-                            writer.writerow([account, yomigana])
+                        writer.writerow(["アイコン", "勘定科目", "よみがな"])
+                        sorted_accounts = sorted(default_accounts, key=lambda x: x[2])
+                        for icon, account, yomigana in sorted_accounts:
+                            writer.writerow([icon, account, yomigana])
                     self.logger.info(f"勘定科目設定ファイルを作成しました: {accounts_file}")
                 except Exception as e:
                     self.logger.error(f"勘定科目設定ファイルの作成に失敗: {e}")
-                    sorted_accounts = sorted(default_accounts, key=lambda x: x[1])
-                    return [account for account, _ in sorted_accounts]
+                    return _default_display_list()
 
         # ファイルから勘定科目を読み込む
         try:
-            # セキュリティチェック: ファイルサイズの制限（1MBまで）
             file_size = os.path.getsize(accounts_file)
             max_file_size = 1024 * 1024  # 1MB
             if file_size > max_file_size:
                 self.logger.error(f"勘定科目設定ファイルのサイズが大きすぎます: {file_size} bytes (制限: {max_file_size} bytes)")
-                sorted_accounts = sorted(default_accounts, key=lambda x: x[1])
-                return [account for account, _ in sorted_accounts]
+                return _default_display_list()
 
             with open(accounts_file, 'r', encoding='utf-8') as f:
                 reader = csv.reader(f)
-                # ヘッダー行をスキップ
                 next(reader, None)
 
                 accounts_data = []
-                max_rows = 10000  # 最大行数の制限
-                max_field_length = 1000  # 各フィールドの最大文字数
+                max_rows = 10000
+                max_field_length = 1000
 
-                for row_num, row in enumerate(reader, start=2):  # ヘッダーが1行目なので2から開始
-                    # セキュリティチェック: 行数の制限
+                for row_num, row in enumerate(reader, start=2):
                     if row_num > max_rows:
                         self.logger.warning(f"勘定科目設定ファイルの行数が制限を超えました: {max_rows}行まで読み込みます")
                         break
 
-                    if len(row) >= 2 and row[0].strip():  # 勘定科目が空でない行のみ
-                        account = row[0].strip()
-                        yomigana = row[1].strip()
+                    if len(row) < 3:
+                        self.logger.warning(f"行{row_num}: 列数が不足しているためスキップします（3列必要、{len(row)}列）")
+                        continue
 
-                        # セキュリティチェック: フィールド長の制限
-                        if len(account) > max_field_length or len(yomigana) > max_field_length:
-                            self.logger.warning(f"行{row_num}: フィールドが長すぎるためスキップします（制限: {max_field_length}文字）")
-                            continue
+                    icon = row[0].strip()
+                    account = row[1].strip()
+                    yomigana = row[2].strip()
 
-                        accounts_data.append((account, yomigana))
+                    if not account or not yomigana:
+                        self.logger.warning(f"行{row_num}: 勘定科目またはよみがなが空のためスキップします")
+                        continue
+
+                    if len(account) > max_field_length or len(yomigana) > max_field_length:
+                        self.logger.warning(f"行{row_num}: フィールドが長すぎるためスキップします（制限: {max_field_length}文字）")
+                        continue
+
+                    accounts_data.append((icon, account, yomigana))
 
                 if accounts_data:
-                    # よみがなでソート
-                    sorted_accounts = sorted(accounts_data, key=lambda x: x[1])
-                    account_names = [account for account, _ in sorted_accounts]
-                    self.logger.info(f"勘定科目を設定ファイルから読み込みました: {len(account_names)}項目（よみがなでソート済み）")
-                    return account_names
+                    sorted_accounts = sorted(accounts_data, key=lambda x: x[2])
+                    display_names = [_format_display(icon, account) for icon, account, _ in sorted_accounts]
+                    self.logger.info(f"勘定科目を設定ファイルから読み込みました: {len(display_names)}項目（よみがなでソート済み）")
+                    return display_names
                 else:
                     self.logger.warning("勘定科目設定ファイルが空です。デフォルト値を使用します")
-                    sorted_accounts = sorted(default_accounts, key=lambda x: x[1])
-                    return [account for account, _ in sorted_accounts]
+                    return _default_display_list()
         except Exception as e:
             self.logger.error(f"勘定科目設定ファイルの読み込みに失敗: {e}")
-            sorted_accounts = sorted(default_accounts, key=lambda x: x[1])
-            return [account for account, _ in sorted_accounts]
+            return _default_display_list()
 
     def _reload_accounts(self, combo_box: QComboBox):
         """勘定科目コンボボックスの内容を再ロード
@@ -1049,21 +1056,32 @@ class PDFViewerApp(QMainWindow):
 
         self.logger.info(f"勘定科目リストを再ロードしました: {len(accounts)}項目")
 
+    @staticmethod
+    def _extract_account_name(display_text: str) -> str:
+        """表示用テキスト「アイコン 勘定科目」から勘定科目名のみを抽出する"""
+        if not display_text:
+            return ""
+        parts = display_text.split(" ", 1)
+        if len(parts) == 2 and len(parts[0]) <= 2:
+            return parts[1]
+        return display_text
+
     def add_account_to_filename(self):
         """選択された勘定科目をファイル名フィールドに追加
 
         ドロップダウンメニューで選択された勘定科目をファイル名に追加する。
+        アイコン付き表示名から勘定科目名のみを抽出してファイル名に使用する。
         """
-        selected_account = self.account_combo.currentText()
-        if selected_account:
+        selected_display = self.account_combo.currentText()
+        if selected_display:
+            account_name = self._extract_account_name(selected_display)
             current_text = self.rename_input.text()
-            # 現在のテキストがあれば、区切り文字を追加して連結
             if current_text:
-                self.rename_input.setText(f"{current_text}_{selected_account}")
+                self.rename_input.setText(f"{current_text}_{account_name}")
             else:
-                self.rename_input.setText(selected_account)
+                self.rename_input.setText(account_name)
 
-            self.logger.info(f"勘定科目「{selected_account}」をファイル名に追加しました")
+            self.logger.info(f"勘定科目「{account_name}」をファイル名に追加しました")
 
     def _format_date_string(self, text: str) -> str:
         """テキスト内の日付をYYYY-MM-DD形式に変換
@@ -1579,6 +1597,9 @@ class PDFViewerApp(QMainWindow):
 
         # 勘定科目ドロップダウンメニュー（プルダウン時に自動再ロード）
         self.account_combo = ReloadableAccountComboBox(self)
+        mono_font = QFont("BIZ UDGothic", 10)
+        mono_font.setStyleHint(QFont.Monospace)
+        self.account_combo.setFont(mono_font)
         # 設定ファイルから勘定科目を読み込んで追加
         accounts = self._load_accounts_from_file()
         self.account_combo.addItems(accounts)
