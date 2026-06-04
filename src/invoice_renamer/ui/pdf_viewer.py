@@ -807,14 +807,33 @@ class PDFViewerApp(QMainWindow):
 
         # コンテキストメニューを作成
         menu = QMenu(self)
+        edit_action = menu.addAction("編集")
         delete_action = menu.addAction("削除")
 
         # メニューを表示し、選択されたアクションを取得
         action = menu.exec_(self.text_items_list.mapToGlobal(position))
 
-        # 削除が選択された場合
-        if action == delete_action:
+        if action == edit_action:
+            self.edit_text_item(item)
+        elif action == delete_action:
             self.delete_text_item(item)
+
+    def edit_text_item(self, item):
+        """テキストアイテムを編集する
+
+        Args:
+            item: 編集するQListWidgetItem
+        """
+        if not item:
+            return
+        from PySide6.QtWidgets import QInputDialog
+        old_text = item.text()
+        new_text, ok = QInputDialog.getText(
+            self, "テキストの編集", "テキスト:", text=old_text
+        )
+        if ok and new_text.strip():
+            item.setText(new_text.strip())
+            self.logger.info(f"テキストアイテムを編集: 「{old_text}」→「{new_text.strip()}」")
 
     def delete_text_item(self, item):
         """テキストアイテムをリストから削除
