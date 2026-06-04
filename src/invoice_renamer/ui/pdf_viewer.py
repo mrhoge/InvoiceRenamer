@@ -1417,21 +1417,23 @@ class PDFViewerApp(QMainWindow):
                 os.makedirs(renamed_folder)
                 self.logger.info(f"renamedフォルダを作成しました: {renamed_folder}")
 
-            # 2. 新しいファイルパスを作成
+            # 2. 新しいファイルパスを作成（同名ファイルがあれば連番を付与）
             new_file_path = os.path.join(renamed_folder, new_name)
-
-            # 3. 同名ファイルの存在チェック
+            renamed_with_seq = False
             if os.path.exists(new_file_path):
-                QMessageBox.warning(
-                    self,
-                    "ファイル名の重複",
-                    f"renamed フォルダ内に同じ名前のファイルが既に存在します:\n{new_name}\n\n"
-                    "別のファイル名を指定してください。"
-                )
-                self.logger.warning(f"ファイル名が重複しているため処理を中止: {new_name}")
-                return
+                seq = 2
+                while True:
+                    seq_name = f"{normalized_name_base}_{seq}.pdf"
+                    seq_path = os.path.join(renamed_folder, seq_name)
+                    if not os.path.exists(seq_path):
+                        new_name = seq_name
+                        new_file_path = seq_path
+                        renamed_with_seq = True
+                        self.logger.info(f"同名ファイルが存在するため連番を付与: {seq_name}")
+                        break
+                    seq += 1
 
-            # 4. 元のファイル名を取得
+            # 3. 元のファイル名を取得
             original_filename = os.path.basename(self.current_pdf_path)
             original_file_new_path = os.path.join(original_folder, original_filename)
 
@@ -1444,12 +1446,12 @@ class PDFViewerApp(QMainWindow):
                 original_file_new_path = os.path.join(original_folder, f"{name_without_ext}_{timestamp}.pdf")
                 self.logger.info(f"同名ファイルが存在するため、タイムスタンプを追加: {os.path.basename(original_file_new_path)}")
 
-            # 5. 元のファイルのタイムスタンプを取得
+            # 4. 元のファイルのタイムスタンプを取得
             stat_info = os.stat(self.current_pdf_path)
             original_atime = stat_info.st_atime  # アクセス時刻
             original_mtime = stat_info.st_mtime  # 変更時刻
 
-            # 6. リネームしたファイルをrenamedフォルダに複製
+            # 5. リネームしたファイルをrenamedフォルダに複製
             import shutil
             shutil.copy2(self.current_pdf_path, new_file_path)
 
@@ -1458,12 +1460,12 @@ class PDFViewerApp(QMainWindow):
 
             self.logger.info(f"ファイルをリネームしてrenamedフォルダに複製: {original_filename} -> renamed/{new_name}")
 
-            # 7. 開いているPDFをクローズ（ファイルハンドルを解放）
+            # 6. 開いているPDFをクローズ（ファイルハンドルを解放）
             if self.pdf_handler:
                 self.pdf_handler.close()
                 self.logger.info(f"PDFをクローズしました: {original_filename}")
 
-            # 8. 元のファイルをoriginalフォルダに移動
+            # 7. 元のファイルをoriginalフォルダに移動
             shutil.move(self.current_pdf_path, original_file_new_path)
             self.logger.info(f"元のファイルを移動: {original_filename} -> original/{os.path.basename(original_file_new_path)}")
 
@@ -1471,12 +1473,14 @@ class PDFViewerApp(QMainWindow):
             msg_box = QMessageBox(self)
             msg_box.setIcon(QMessageBox.NoIcon)  # アイコンなしで音も鳴らない
             msg_box.setWindowTitle("完了")
+            seq_note = "\n※ 同名ファイルが存在したため、連番を付与しました" if renamed_with_seq else ""
             msg_box.setText(
                 f"✓ ファイルをリネームしました:\n\n"
                 f"元のファイル: {original_filename}\n"
                 f"→ original/{os.path.basename(original_file_new_path)}\n\n"
                 f"リネーム後: {new_name}\n"
                 f"→ renamed/{new_name}"
+                f"{seq_note}"
             )
             msg_box.setStandardButtons(QMessageBox.Ok)
             msg_box.exec_()
@@ -1487,7 +1491,7 @@ class PDFViewerApp(QMainWindow):
             self.preview_label.clear()
             self.preview_label.setText("PDFファイルを選択してください")
 
-            # 9. PDF一覧を再取得（最初のPDFが自動的に開かれる）
+            # 8. PDF一覧を再取得（最初のPDFが自動的に開かれる）
             self.load_pdf_files(self.current_folder)
 
         except PermissionError as e:
