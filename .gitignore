@@ -69,3 +69,7 @@ settings.ini
 
 # Renamed PDFs (user data)
 renamed/
+
+# Environment-specific files
+CLAUDE.md
+install-pyenv-win.ps1

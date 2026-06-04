@@ -676,6 +676,7 @@ class PDFViewerApp(QMainWindow):
         if self.current_page > 0:
             self.current_page -= 1
             self.update_page_display()
+            self._add_page_text_items()
             self.logger.info(f"前のページを表示: {self.current_page + 1}/{self.total_pages}")
 
     def show_next_page(self):
@@ -683,6 +684,7 @@ class PDFViewerApp(QMainWindow):
         if self.current_page < self.total_pages -1:
             self.current_page += 1
             self.update_page_display()
+            self._add_page_text_items()
             self.logger.info(f"次のページを表示: {self.current_page + 1}/{self.total_pages}")
     
     def zoom_in(self):
@@ -1182,10 +1184,6 @@ class PDFViewerApp(QMainWindow):
             text = self.pdf_handler.get_text(self.current_pdf_path, self.current_page)
             self.text_edit.setText(text)
 
-            # テキストから意味のある項目を抽出してリストに表示
-            self.extracted_text_items = self.extract_text_items(text)
-            self.update_text_items_list()
-
             # ページ情報の更新（ズーム情報も含む）
             zoom_percent = int(self.zoom_scale * 100)
             self.page_label.setText(f"{self.current_page + 1}/{self.total_pages} ({zoom_percent}%)")
@@ -1205,6 +1203,27 @@ class PDFViewerApp(QMainWindow):
         self.text_items_list.clear()
         for item in self.extracted_text_items:
             self.text_items_list.addItem(item)
+
+    def _add_page_text_items(self):
+        """現在のページからテキストを抽出し、リストに累積追加する（重複はスキップ）"""
+        if not self.current_pdf_path:
+            return
+        text = self.pdf_handler.get_text(self.current_pdf_path, self.current_page)
+        new_items = self.extract_text_items(text)
+        existing_texts = set(
+            self.text_items_list.item(i).text()
+            for i in range(self.text_items_list.count())
+        )
+        for item_text in new_items:
+            if item_text not in existing_texts:
+                self.text_items_list.addItem(item_text)
+                existing_texts.add(item_text)
+
+    def clear_text_items_list(self):
+        """抽出テキスト一覧をクリアし、現在のページから再抽出する"""
+        self.text_items_list.clear()
+        self._add_page_text_items()
+        self.logger.info("抽出テキスト一覧をリセットしました")
 
     def _normalize_filename(self, filename: str) -> str:
         """ファイル名を正規化し、Windows/macで使用できない文字を全角に変換
@@ -1514,8 +1533,15 @@ class PDFViewerApp(QMainWindow):
         sidebar_layout.addWidget(self.select_folder_btn)
 
         # 抽出テキストアイテムリストを追加
+        text_items_header = QHBoxLayout()
         text_items_label = QLabel("抽出されたテキスト")
-        sidebar_layout.addWidget(text_items_label)
+        text_items_header.addWidget(text_items_label)
+        text_items_header.addStretch()
+        self.clear_text_items_btn = QPushButton("リセット")
+        self.clear_text_items_btn.setFixedWidth(60)
+        self.clear_text_items_btn.clicked.connect(self.clear_text_items_list)
+        text_items_header.addWidget(self.clear_text_items_btn)
+        sidebar_layout.addLayout(text_items_header)
         self.text_items_list = QListWidget()
         # 右クリックメニューを有効化
         self.text_items_list.setContextMenuPolicy(Qt.CustomContextMenu)
@@ -2091,6 +2117,7 @@ class PDFViewerApp(QMainWindow):
 
                 # ズームと表示位置をリセット
                 self.reset_zoom()
+                self._add_page_text_items()
 
                 # 新しいファイル名フィールドは空のまま（ユーザーが入力）
                 self.rename_input.clear()
