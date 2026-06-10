@@ -1,4 +1,29 @@
-# Python
+# ===== Claude Code =====
+.claude/
+
+# ===== OS files =====
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.stackdump
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# ===== Editor / IDE =====
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ===== Python =====
 __pycache__/
 *.py[cod]
 *.class
@@ -19,57 +44,44 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+MANIFEST
 
-# Virtual Environment
-venv/
+# ===== Virtual environments =====
 .venv/
+venv/
 env/
 ENV/
 
-# Environment Variables
-.env
-
-# IDE
-.idea/
-.vscode/
-*.swp
-*.swo
+# ===== Test / type-check caches =====
 .pytest_cache/
 .mypy_cache/
-
-# OS
-.DS_Store
-Thumbs.db
-desktop.ini
-
-# Test Data
-*.pdf
-*.log
-*.tmp
-*.png
-*.jpg
-*.jpeg
-*.bak
-*.bk
-
-# Logs
-logs/
-
-# Coverage and Debug
+.ruff_cache/
+.tox/
 .coverage
 coverage.xml
 htmlcov/
-.tox/
 
-# Application Settings
-settings.ini
-
-# PyInstaller
+# ===== PyInstaller =====
 *.spec
 
-# Renamed PDFs (user data)
+# ===== Secrets / settings =====
+.env
+settings.ini
+
+# ===== Logs =====
+*.log
+logs/
+
+# ===== Test data / generated user data =====
+*.pdf
+*.png
+*.jpg
+*.jpeg
+*.tmp
+*.bak
+*.bk
 renamed/
 
-# Environment-specific files
+# ===== Environment-specific files =====
 CLAUDE.md
 install-pyenv-win.ps1
