@@ -38,5 +38,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 # PYTHONPATHを設定して、アプリケーションのディレクトリをPythonのimportパスに追加
 ENV PYTHONPATH=/app/src
 
+# 非rootユーザーで実行（コンテナ内で問題が起きた場合の影響範囲を最小化）
+RUN useradd --create-home --shell /usr/sbin/nologin app \
+    && chown -R app:app /app
+USER app
+
 # エントリーポイント（変更が必要なら適宜修正・ただしdocker run コマンドで上書き可能）
 # CMD ["python", "main.py"]
