@@ -1,0 +1,17 @@
+# Dependabot 設定
+# requirements.txt をバージョン固定にしているため、
+# 脆弱性修正版・新バージョンが出たら自動でPRを作って知らせてもらう
+version: 2
+updates:
+  # Python 依存ライブラリ（requirements.txt）
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+
+  # GitHub Actions（.github/workflows/ で使用しているアクション）
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"

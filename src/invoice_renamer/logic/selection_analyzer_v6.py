@@ -33,6 +33,7 @@ from PySide6.QtCore import QRect
 from invoice_renamer.utils.logger import setup_logger
 from invoice_renamer.utils.error_handler import ErrorHandler, ErrorType
 from invoice_renamer.logic.config_manager import ConfigManager
+from invoice_renamer.logic.ocr_preprocess import preprocess_variants
 
 
 @dataclass
@@ -643,7 +644,7 @@ class SelectionAnalyzer:
                 except Exception as ie:
                     self.logger.error(f"画像変換エラー (要素 {idx}): {str(ie)}")
                     continue
-                
+
                 # OCR設定（日本語優先設定）
                 if quick_mode:
                     # 高速モード：日本語と英語を併用、文字制限を最小限に
@@ -657,13 +658,15 @@ class SelectionAnalyzer:
                     )
                 
                 # OCR実行（選択された言語で）
+                # まず元画像で実行する。Tesseract 5は内部前処理が優秀で、
+                # 品質の良い画像に補正を常時かけると逆に精度が落ちるため
                 if ocr_language == 'auto':
                     # 自動検出モード
                     text = self._auto_detect_language_ocr(pil_image, ocr_config, quick_mode)
                 else:
                     # 指定された言語でOCR実行
                     text = pytesseract.image_to_string(pil_image, config=ocr_config, lang=ocr_language)
-                    
+
                     # 日本語が含まれている場合のフォールバック
                     if ocr_language == 'jpn+eng' and (not text.strip() or not self._contains_japanese_text(text)):
                         text_jpn = pytesseract.image_to_string(pil_image, config='--oem 3 --psm 6', lang='jpn')
@@ -671,6 +674,18 @@ class SelectionAnalyzer:
                             text = text_jpn
                             if not quick_mode:
                                 self.logger.info(f"日本語専用OCRで再試行: '{text[:50]}{'...' if len(text) > 50 else ''}'")
+
+                # フォールバック: 元画像で意味のある結果が得られなかった場合のみ、
+                # 補正画像（ノイズ除去・拡大）で再試行する。スキャン品質が低い
+                # レシート対策。元画像で読めた場合の結果には一切影響しない
+                if not self._ocr_text_looks_valid(text):
+                    for variant_idx, variant in enumerate(preprocess_variants(pil_image, self.logger)):
+                        retry_text = pytesseract.image_to_string(variant, config=ocr_config, lang='jpn+eng' if ocr_language == 'auto' else ocr_language)
+                        if self._ocr_text_looks_valid(retry_text):
+                            text = retry_text
+                            if not quick_mode:
+                                self.logger.info(f"補正画像(変種{variant_idx + 1})でのOCR再試行に成功: '{text.strip()[:30]}...'")
+                            break
                 
                 if text and text.strip():
                     confidence = 0.8 if quick_mode else 0.9  # 高速モードでは信頼度を少し下げる
@@ -926,6 +941,18 @@ class SelectionAnalyzer:
         
         return '\n'.join(valid_lines).strip()
     
+    def _ocr_text_looks_valid(self, text: str) -> bool:
+        """OCR結果に意味のある内容（日本語または英数字）が含まれているか
+
+        補正画像でのOCR再試行を行うかどうかの判定に使う。
+        空文字や記号のみの結果は「失敗」とみなす。
+        """
+        if not text or not text.strip():
+            return False
+        if self._contains_japanese_text(text):
+            return True
+        return any(ch.isascii() and ch.isalnum() for ch in text)
+
     def _contains_japanese_text(self, text: str) -> bool:
         """テキストに日本語文字が含まれているかチェック"""
         if not text:

@@ -36,7 +36,8 @@ from PySide6.QtWidgets import (QMainWindow, QVBoxLayout, QHBoxLayout,
                             QListWidgetItem, QScrollArea, QFrame, QCheckBox,
                             QTextBrowser, QApplication, QComboBox)
 from PySide6.QtCore import Qt, Signal, QRect, QPoint, QTimer, QThread, QStandardPaths, QUrl, QSettings
-from PySide6.QtGui import QPixmap, QImage, QPainter, QPen, QColor, QMouseEvent, QFont
+from PySide6.QtGui import (QPixmap, QImage, QPainter, QPen, QColor, QMouseEvent,
+                           QFont, QAction, QDesktopServices)
 from pdf2image import convert_from_path
 from invoice_renamer.logic.pdf_handlers import PDFHandler, PyMuPDFHandler, PDF2ImageHandler
 from invoice_renamer.logic.selection_analyzer_v6 import SelectionAnalyzer, SelectionData
@@ -1424,7 +1425,7 @@ class PDFViewerApp(QMainWindow):
         try:
             # 1. originalフォルダとrenamedフォルダのパスを作成
             original_folder = os.path.join(self.current_folder, 'original')
-            renamed_folder = os.path.join(self.current_folder, 'renamed')
+            renamed_folder = os.path.join(self.current_folder, constants.RENAMED_FOLDER_NAME)
 
             # フォルダが存在しない場合は作成
             if not os.path.exists(original_folder):
@@ -1548,10 +1549,27 @@ class PDFViewerApp(QMainWindow):
     def setup_ui(self):
         self.setWindowTitle("Invoice Renamer")
         self.resize(1200, 800)
-        self.current_folder = None
+        # 注意: self.current_folder はここで初期化しない。
+        # __init__ で前回のフォルダパスを復元済みのため、ここでNoneを代入すると復元が無効になる
 
         # アイコンを設定
         self._set_window_icon()
+
+        # メニューバー（ファイルメニュー）
+        # PySide6ではPython側の参照を保持しないとオブジェクトが解放されることがあるため、
+        # メニューとアクションはインスタンス属性として保持する
+        self.file_menu = self.menuBar().addMenu("ファイル(&F)")
+
+        self.open_renamed_folder_action = QAction("リネーム後ファイル保存先を開く(&O)", self)
+        self.open_renamed_folder_action.triggered.connect(self.open_renamed_folder)
+        self.file_menu.addAction(self.open_renamed_folder_action)
+
+        self.file_menu.addSeparator()
+
+        self.quit_action = QAction("終了(&X)", self)
+        self.quit_action.setShortcut("Ctrl+Q")
+        self.quit_action.triggered.connect(self.close)
+        self.file_menu.addAction(self.quit_action)
 
         # 中央ウィジェットと全体レイアウト
         central_widget = QWidget()
@@ -2225,6 +2243,34 @@ class PDFViewerApp(QMainWindow):
             self.settings.setValue("last_folder_path", folder_path)
             self.load_pdf_files(folder_path)
             self.logger.info(f"PDFフォルダを選択: {folder_path}")
+
+    def open_renamed_folder(self):
+        """リネーム後ファイルの保存先（renamedフォルダ）をOSのファイラーで開く
+
+        ファイルメニューから呼び出される。renamedフォルダはリネーム実行時に
+        作成されるため、未作成の場合は案内メッセージを表示する。
+        """
+        if not self.current_folder:
+            QMessageBox.information(
+                self,
+                "情報",
+                "PDFフォルダが選択されていません。\n"
+                "先に「PDFフォルダを選択」でフォルダを指定してください。"
+            )
+            return
+
+        renamed_folder = os.path.join(self.current_folder, constants.RENAMED_FOLDER_NAME)
+        if not os.path.isdir(renamed_folder):
+            QMessageBox.information(
+                self,
+                "情報",
+                "リネーム後のファイルはまだありません。\n"
+                f"（{constants.RENAMED_FOLDER_NAME}フォルダはリネーム実行時に作成されます）"
+            )
+            return
+
+        QDesktopServices.openUrl(QUrl.fromLocalFile(renamed_folder))
+        self.logger.info(f"renamedフォルダを開きました: {renamed_folder}")
 
     def load_pdf_files(self, folder_path):
         # PDFファイルのみを抽出してリスト化

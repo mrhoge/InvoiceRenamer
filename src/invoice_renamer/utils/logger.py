@@ -17,9 +17,53 @@ the LICENSE file in the distribution root.
 
 import logging
 import os
+import time
 from datetime import datetime
 from invoice_renamer.logic.config_manager import ConfigManager
-from invoice_renamer.utils.constants import PROJECT_NAME, DEFAULT_LOG_DIR
+from invoice_renamer.utils.constants import (
+    PROJECT_NAME,
+    DEFAULT_LOG_DIR,
+    DEFAULT_LOG_FILE_PREFIX,
+    LOG_RETENTION_DAYS,
+)
+
+# 古いログの削除は起動ごとに1回で十分なため、実行済みフラグで多重実行を防ぐ
+_old_logs_cleaned = False
+
+
+def _cleanup_old_logs(log_dir, retention_days=LOG_RETENTION_DAYS):
+    """保持期限を過ぎたログファイルを削除する
+
+    ログには処理したファイル名（＝領収書の内容）が含まれ得るため、
+    プライバシー保護の観点から一定期間で削除する。
+    対象はこのAPが生成したログ（プレフィックス・拡張子が一致するもの）のみ。
+    削除に失敗してもAPの起動は妨げない。
+
+    Args:
+        log_dir (str): ログファイル保存先ディレクトリ
+        retention_days (int): 保持日数。これより古いログを削除する
+    """
+    global _old_logs_cleaned
+    if _old_logs_cleaned:
+        return
+    _old_logs_cleaned = True
+
+    cutoff = time.time() - retention_days * 24 * 60 * 60
+    try:
+        for name in os.listdir(log_dir):
+            if not (name.startswith(DEFAULT_LOG_FILE_PREFIX) and name.endswith('.log')):
+                continue
+            path = os.path.join(log_dir, name)
+            try:
+                if os.path.isfile(path) and os.path.getmtime(path) < cutoff:
+                    os.remove(path)
+            except OSError:
+                # 使用中・権限エラー等は無視して次のファイルへ
+                pass
+    except OSError:
+        # ディレクトリが読めない場合も起動は継続する
+        pass
+
 
 def setup_logger(module_name=None, log_dir="logs"):
     """AP用のロガーセットアップ
@@ -42,6 +86,9 @@ def setup_logger(module_name=None, log_dir="logs"):
     # ログディレクトリが存在しない場合は作成
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
+
+    # 保持期限を過ぎた古いログを削除（起動ごとに1回だけ実行される）
+    _cleanup_old_logs(log_dir)
 
     # ロガー名の設定
     logger_name = module_name if module_name else PROJECT_NAME

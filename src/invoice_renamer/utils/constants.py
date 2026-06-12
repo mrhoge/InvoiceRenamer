@@ -18,11 +18,15 @@ PROJECT_NAME = "invoice_renamer"
 
 # ディレクトリ構造
 WORK_FOLDER_NAME = "work"
+# リネーム後のファイルを保存するフォルダ名（選択したPDFフォルダ内に作成される）
+RENAMED_FOLDER_NAME = "renamed"
 
 # ログ関係の定数（デフォルト値）
 DEFAULT_LOG_DIR = "logs"
 DEFAULT_LOG_FORMAT = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 DEFAULT_LOG_FILE_PREFIX = f"{PROJECT_NAME}_"
+# ログにはユーザーが処理したファイル名が含まれ得るため、一定期間で自動削除する
+LOG_RETENTION_DAYS = 30
 
 # 拡張子
 FILE_EXTENTION_NAME = ".pdf"
