@@ -28,7 +28,7 @@ jobs:
         pyinstaller --onefile --name InvoiceRenamer invoice_renamer.py
     
     - name: Upload Release Asset
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v3
       with:
         files: dist/InvoiceRenamer.exe
       env:
